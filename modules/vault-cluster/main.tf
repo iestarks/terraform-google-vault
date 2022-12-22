@@ -13,6 +13,17 @@ terraform {
 # The default project service account will be used if create_service_account
 # is set to false and no service_account_email is provided.
 # ---------------------------------------------------------------------------------------------------------------------
+/* data "google_compute_image" "debian-11" {
+  family  = "debian-11"
+  project = "debian-cloud"
+}
+
+
+data "google_compute_image" "ubuntu-1804-lts" {
+  family  = "ubuntu-1804-lts"
+  project = "ubuntu-os-cloud"
+} */
+
 
 resource "google_service_account" "vault_cluster_admin" {
   count        = var.create_service_account ? 1 : 0
@@ -51,7 +62,7 @@ resource "google_project_iam_member" "other_sa_view_project" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 # Create the single-zone Managed Instance Group where Vault will run.
-resource "google_compute_region_instance_group_manager" "vault" {
+/* resource "google_compute_region_instance_group_manager" "vault" {
   name = "${var.cluster_name}-ig"
 
   project = var.gcp_project_id
@@ -72,6 +83,82 @@ resource "google_compute_region_instance_group_manager" "vault" {
     google_compute_instance_template.vault_public,
     google_compute_instance_template.vault_private,
   ]
+} */
+
+
+resource "google_compute_target_pool" "vault" {
+  name = "instance-pool"
+
+  instances = [
+    "us-east1-a/myinstance1",
+    "us-east1-b/myinstance2",
+  ]
+
+  health_checks = [
+    google_compute_http_health_check.vault_health_check.name,
+  ]
+}
+
+resource "google_compute_http_health_check" "vault_health_check" {
+  name               = "vault-health-check"
+  request_path       = "/"
+  check_interval_sec = 1
+  timeout_sec        = 1
+}
+
+
+resource "google_compute_health_check" "autohealing" {
+  name        = "tcp-health-check"
+  description = "Health check via tcp"
+
+  timeout_sec         = 1
+  check_interval_sec  = 1
+  healthy_threshold   = 4
+  unhealthy_threshold = 5
+
+  tcp_health_check {
+    port_name          = "health-check-port"
+    port_specification = "USE_NAMED_PORT"
+    request            = "ARE YOU HEALTHY?"
+    proxy_header       = "NONE"
+    response           = "I AM HEALTHY"
+  }
+}
+
+
+
+resource "google_compute_region_instance_group_manager" "vault" {
+  name = "vault-igm"
+
+  base_instance_name         = var.cluster_name
+  region                     = var.gcp_region
+  distribution_policy_zones  = ["us-east1-c", "us-east1-b","us-east1-d"]
+
+  version {
+    instance_template = data.template_file.compute_instance_template_self_link.rendered
+  }
+
+  /* all_instances_config {
+    metadata = {
+      metadata_key = "metadata_value"
+    }
+    labels = {
+      label_key = "label_value"
+    }
+  } */
+
+  target_pools = [google_compute_target_pool.vault.id]
+  target_size  = var.cluster_size
+
+  named_port {
+    name = "custom"
+    port = 8888
+  }
+
+  auto_healing_policies {
+    health_check      = google_compute_health_check.autohealing.id
+    initial_delay_sec = 300
+  }
 }
 
 # Create the Instance Template that will be used to populate the Managed Instance Group.
@@ -361,9 +448,14 @@ data "template_file" "compute_instance_template_self_link" {
 
 # This is a workaround for a provider bug in Terraform v0.11.8. For more information please refer to:
 # https://github.com/terraform-providers/terraform-provider-google/issues/2067.
-data "google_compute_image" "image" {
+/* data "google_compute_image" "image" {
   name    = var.source_image
   project = var.image_project_id != null ? var.image_project_id : var.gcp_project_id
+} */
+
+data "google_compute_image" "image" {
+  family  = "debian-11"
+  project = "debian-cloud"
 }
 
 # This is a work around so we don't have yet another combination of google_compute_instance_template

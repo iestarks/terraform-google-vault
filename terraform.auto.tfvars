@@ -1,0 +1,6 @@
+gcp_region="us-east1"
+gcp_project_id="gcp-tf-372321"
+vault_cluster_name ="vault-node"
+consul_server_cluster_name="vault-consol-clus-1"
+shutdown_script = "../terraform-google-consul/examples/root-example/shutdown-script.sh"
+consul_server_source_image ="ubuntu-1804-lts"

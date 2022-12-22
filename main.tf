@@ -6,20 +6,15 @@
 # uses Consul, running in a separate cluster, as its High Availability backend.
 # ---------------------------------------------------------------------------------------------------------------------
 
-provider "google" {
-  region  = var.gcp_region
-  project = var.gcp_project_id
-}
-
-terraform {
-  # The modules used in this example have been updated with 0.12 syntax, which means the example is no longer
-  # compatible with any versions below 0.12.
-  required_version = ">= 0.12"
-}
 
 # ---------------------------------------------------------------------------------------------------------------------
 # DEPLOY THE VAULT SERVER CLUSTER
 # ---------------------------------------------------------------------------------------------------------------------
+
+data "google_compute_image" "debian-11" {
+  family  = "debian-11"
+  project = "debian-cloud"
+}
 
 module "vault_cluster" {
   # When using these modules in your own templates, you will need to use a Git URL with a ref attribute that pins you
@@ -36,7 +31,7 @@ module "vault_cluster" {
   machine_type     = var.vault_cluster_machine_type
 
   image_project_id = var.image_project_id
-  source_image     = var.vault_source_image
+  source_image     = data.google_compute_image.debian-11.self_link
   startup_script   = data.template_file.startup_script_vault.rendered
 
   gcs_bucket_name          = var.vault_cluster_name
@@ -77,10 +72,12 @@ data "template_file" "startup_script_vault" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 module "consul_cluster" {
-  source = "git::git@github.com:hashicorp/terraform-google-consul.git//modules/consul-cluster?ref=v0.4.0"
+  //source = "git::git@github.com:hashicorp/terraform-google-consul.git//modules/consul-cluster?ref=master"
 
+  source = "../terraform-google-consul/modules/consul-cluster"
   gcp_project_id = var.gcp_project_id
   gcp_region     = var.gcp_region
+  shutdown_script = var.shutdown_script
 
   cluster_name     = var.consul_server_cluster_name
   cluster_tag_name = var.consul_server_cluster_name
